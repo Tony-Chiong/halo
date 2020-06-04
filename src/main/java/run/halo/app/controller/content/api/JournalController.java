@@ -8,6 +8,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.data.web.SortDefault;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.HtmlUtils;
 import run.halo.app.cache.lock.CacheLock;
 import run.halo.app.model.dto.BaseCommentDTO;
 import run.halo.app.model.dto.JournalDTO;
@@ -24,18 +25,19 @@ import run.halo.app.service.JournalCommentService;
 import run.halo.app.service.JournalService;
 import run.halo.app.service.OptionService;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.springframework.data.domain.Sort.Direction.DESC;
 
 /**
- * Content Journal controller.
+ * Content journal controller.
  *
  * @author johnniang
  * @author ryanwang
  * @date 2019-04-26
  */
-@RestController("PortalJournalController")
+@RestController("ApiContentJournalController")
 @RequestMapping("/api/content/journals")
 public class JournalController {
 
@@ -71,8 +73,7 @@ public class JournalController {
     public Page<CommentWithHasChildrenVO> listTopComments(@PathVariable("journalId") Integer journalId,
                                                           @RequestParam(name = "page", required = false, defaultValue = "0") int page,
                                                           @SortDefault(sort = "createTime", direction = DESC) Sort sort) {
-        Page<CommentWithHasChildrenVO> result = journalCommentService.pageTopCommentsBy(journalId, CommentStatus.PUBLISHED, PageRequest.of(page, optionService.getCommentPageSize(), sort));
-        return journalCommentService.filterIpAddress(result);
+        return journalCommentService.pageTopCommentsBy(journalId, CommentStatus.PUBLISHED, PageRequest.of(page, optionService.getCommentPageSize(), sort));
     }
 
     @GetMapping("{journalId:\\d+}/comments/{commentParentId:\\d+}/children")
@@ -82,8 +83,7 @@ public class JournalController {
         // Find all children comments
         List<JournalComment> postComments = journalCommentService.listChildrenBy(journalId, commentParentId, CommentStatus.PUBLISHED, sort);
         // Convert to base comment dto
-        List<BaseCommentDTO> result = journalCommentService.convertTo(postComments);
-        return journalCommentService.filterIpAddress(result);
+        return journalCommentService.convertTo(postComments);
     }
 
     @GetMapping("{journalId:\\d+}/comments/tree_view")
@@ -91,8 +91,7 @@ public class JournalController {
     public Page<BaseCommentVO> listCommentsTree(@PathVariable("journalId") Integer journalId,
                                                 @RequestParam(name = "page", required = false, defaultValue = "0") int page,
                                                 @SortDefault(sort = "createTime", direction = DESC) Sort sort) {
-        Page<BaseCommentVO> result = journalCommentService.pageVosBy(journalId, PageRequest.of(page, optionService.getCommentPageSize(), sort));
-        return journalCommentService.filterIpAddress(result);
+        return journalCommentService.pageVosBy(journalId, PageRequest.of(page, optionService.getCommentPageSize(), sort));
     }
 
     @GetMapping("{journalId:\\d+}/comments/list_view")
@@ -100,14 +99,16 @@ public class JournalController {
     public Page<BaseCommentWithParentVO> listComments(@PathVariable("journalId") Integer journalId,
                                                       @RequestParam(name = "page", required = false, defaultValue = "0") int page,
                                                       @SortDefault(sort = "createTime", direction = DESC) Sort sort) {
-        Page<BaseCommentWithParentVO> result = journalCommentService.pageWithParentVoBy(journalId, PageRequest.of(page, optionService.getCommentPageSize(), sort));
-        return journalCommentService.filterIpAddress(result);
+        return journalCommentService.pageWithParentVoBy(journalId, PageRequest.of(page, optionService.getCommentPageSize(), sort));
     }
 
     @PostMapping("comments")
     @ApiOperation("Comments a post")
     @CacheLock(autoDelete = false, traceRequest = true)
     public BaseCommentDTO comment(@RequestBody JournalCommentParam journalCommentParam) {
+
+        // Escape content
+        journalCommentParam.setContent(HtmlUtils.htmlEscape(journalCommentParam.getContent(), StandardCharsets.UTF_8.displayName()));
         return journalCommentService.convertTo(journalCommentService.createBy(journalCommentParam));
     }
 }
